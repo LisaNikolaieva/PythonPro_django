@@ -12,6 +12,7 @@ class Route(models.Model):
     country = models.CharField(max_length=50)
     location = models.CharField(max_length=50)
     description = models.TextField()
+    duration = models.IntegerField()
 
     class RouteType(models.TextChoices):
         Car = 'Car', gettext_lazy('Car')
@@ -22,7 +23,7 @@ class Route(models.Model):
         choices=RouteType.choices,
         default=RouteType.Foot
     )
-    duration = models.IntegerField
+
 
 class Event(models.Model):
     id_route = models.IntegerField()
@@ -31,3 +32,9 @@ class Event(models.Model):
     pending_users = models.JSONField()
     start_date = models.DateField()
     price = models.IntegerField()
+
+
+class Review(models.Model):
+    route_id = models.IntegerField()
+    review_text = models.TextField()
+    review_rate = models.IntegerField()
