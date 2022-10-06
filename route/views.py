@@ -1,5 +1,7 @@
-from django.shortcuts import render
+from django.contrib.auth import authenticate, login, logout
+from django.shortcuts import render, redirect
 from django.http import HttpResponse
+from django.contrib.auth.models import User
 from route import models
 
 # Create your views here.
@@ -48,22 +50,60 @@ def route_add(request):
 
 
 def route_add_event(request, route_id):
-    if request.method == 'GET':
-        return render(request, 'add_event_route.html')
-    if request.method == 'POST':
-        start_date = request.POST.get('start_date')
-        price = request.POST.get('price')
-
-        new_event = models.Event(id_route=route_id,
-                                 event_admin=1,
-                                 approved_users=[],
-                                 pending_users=[],
-                                 start_date=start_date, price=price)
-        new_event.save()
-    return HttpResponse('Adding event')
-
+    if request.user.has_perm('route.add_event'):
+        if request.method == 'GET':
+            return render(request, 'add_event_route.html')
+        if request.method == 'POST':
+            start_date = request.POST.get('start_date')
+            price = request.POST.get('price')
+            new_event = models.Event(id_route=route_id,
+                                     event_admin=1,
+                                     approved_users=[],
+                                     pending_users=[],
+                                     start_date=start_date, price=price)
+            new_event.save()
+            return HttpResponse('Adding event')
+    else:
+        return HttpResponse('Not allowed to add event')
 
 def event_handler(request, event_id):
     result = models.Event.objects.all().filter(id=event_id)
     return HttpResponse([{'id_route': itm.id_route, 'start_date': itm.start_date, 'price': itm.price} for itm in result])
 
+
+def user_login(request):
+    if not request.user.is_authenticated:
+        if request.method == 'GET':
+            return render(request, 'login.html')
+        if request.method == 'POST':
+            username = request.POST['username']
+            password = request.POST['password']
+            user = authenticate(username=username, password=password)
+            if user is not None:
+                login(request, user)
+                return HttpResponse('User is login')
+            else:
+                return HttpResponse('No user')
+    else:
+        return HttpResponse('<a href="logout">logout</a>')
+
+def user_registration(request):
+    if not request.user.is_authenticated:
+        if request.method == 'GET':
+            return render(request, 'registration.html')
+        if request.method == 'POST':
+            user = User.objects.create_user(username=request.POST.get('username'),
+                                            password=request.POST.get('password'),
+                                            email=request.POST.get('email'),
+                                            first_name=request.POST.get('first_name'),
+                                            last_name=request.POST.get('last_name'))
+            user.save()
+            return HttpResponse('User is created')
+    else:
+        return HttpResponse('<a href="logout">logout</a>')
+
+
+def logout_user(request):
+    logout(request)
+    # print(request.user.has_perm('route.event'))
+    return redirect('/login')
