@@ -1,10 +1,18 @@
+import json
+
+from bson import ObjectId
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.contrib.auth.models import User
 from route import models
 from django.db import connection
+from mongo_utils import MongoDBConnection
 
+import pymongo
+
+
+# client = MongoClient('localhost', 27017)
 
 # Create your views here.
 
@@ -39,7 +47,12 @@ def route_filter(request, route_type=None, country=None, location=None):
                    "stopping_point": i[3], "route_type": i[4], "start": i[5],
                    "end": i[6]} for i in result]
 
-    return HttpResponse(new_result)
+    with MongoDBConnection('admin', 'admin', '127.0.0.1') as db:
+        collec = db['stop_points']
+        stop_point = collec.find_one({"_id": ObjectId(new_result[0]['stopping_point'])})
+        print(f"{stop_point}")
+    # return HttpResponse(new_result)
+    return HttpResponse([new_result, stop_point])
 
 
 def route_detail(request, id):
@@ -57,6 +70,7 @@ def route_add(request):
         return render(request, 'add_route.html')
     if request.method == 'POST':
         dest = request.POST.get('destination')
+        stop_points = request.POST.get('stop_points')
         start_point = request.POST.get('starting_point')
         country = request.POST.get('country')
         location = request.POST.get('location')
@@ -64,12 +78,17 @@ def route_add(request):
         duration = request.POST.get('duration')
         route_type = request.POST.get('route_type')
 
+        stop_list = json.loads(stop_points)
+        with MongoDBConnection('admin', 'admin', '127.0.0.1') as db:
+            collec = db['stop_points']
+            id_stop_points = collec.insert_one({'points': stop_list}).inserted_id
+
         start_obj = models.Places.objects.get(name=start_point)
         dest_obj = models.Places.objects.get(name=dest)
 
         new_route = models.Route(starting_point=start_obj.id, destination=dest_obj.id,
                                  country=country, location=location, description=description,
-                                 duration=duration, route_type=route_type, stopping_point={})
+                                 duration=duration, route_type=route_type, stopping_point=id_stop_points)
         new_route.save()
     return HttpResponse('Creating a route')
 
@@ -92,10 +111,6 @@ def route_add_event(request, route_id):
         return HttpResponse('Not allowed to add event')
 
 
-
-
-
-
 ####################################################
 # def event_handler(request, event_id):
 #     result = models.Event.objects.all().filter(id=event_id)
@@ -111,7 +126,8 @@ def event_handler(request, event_id):
        route.description,
        route.duration,
        route.stopping_point,
-       route.route_type
+       route.route_type,
+       route_event.event_users
 FROM route_event
 JOIN route_route AS route ON route.id = route_event.id_route
                                                 WHERE route_event.id = {event_id}"""
@@ -121,15 +137,22 @@ JOIN route_route AS route ON route.id = route_event.id_route
 
     new_result = [{"event_id": i[0], "start_date": i[1], "price": i[2],
                    "country": i[3], "description": i[4], "duration": i[5],
-                   "stopping_point": i[6], "route_type": i[7]} for i in result]
+                   "stopping_point": i[6], "route_type": i[7], "id_event_users": i[8]} for i in result]
 
-    return HttpResponse(new_result)
+    with MongoDBConnection('admin', 'admin', '127.0.0.1') as db:
+        collec = db['events_users']
+        id_users = collec.find_one({"_id": ObjectId(new_result[0].get('id_event_users'))})
 
+    users_accepted = User.objects.filter(pk__in=id_users['accepted'])
+    users_pending = User.objects.filter(pk__in=id_users['pending'])
 
+    list_users_accepted = [{itm.id: itm.username} for itm in users_accepted]
+    list_users_pending = [{itm.id: itm.username} for itm in users_pending]
 
+    new_result[0]['accepted user'] = list_users_accepted
+    new_result[0]['pending user'] = list_users_pending
 
-
-
+    return HttpResponse([new_result])
 
 
 def user_login(request):
@@ -169,3 +192,20 @@ def logout_user(request):
     logout(request)
     # print(request.user.has_perm('route.event'))
     return redirect('/login')
+
+
+def add_me_to_event(request, event_id):
+    user = request.user.id
+    event = models.Event.objects.filter(id=event_id).first()
+
+    with MongoDBConnection('admin', 'admin', '127.0.0.1') as db:
+        event_users = db['events_users']
+        all_event_users = event_users.find_one({"_id": ObjectId(event.event_users)})
+
+        if user not in all_event_users['pending'] and user not in all_event_users['accepted']:
+            all_event_users['pending'].append(user)
+            event_users.update_one({"_id": ObjectId(all_event_users)}, {"$set": all_event_users}, upsert=False)
+        else:
+            return HttpResponse('You are in pending users or accepted')
+
+
