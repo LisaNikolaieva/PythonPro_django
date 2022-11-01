@@ -19,7 +19,8 @@ from route import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('route/', include("route.urls")),
-    path('event/<event_id>', views.event_handler),
+    path('event/<event_id>', views.event_handler, name='event_handler'),
+    path('event/<event_id>/add_me', views.add_me_to_event, name='add_me'),
     path('login', views.user_login),
     path('registration', views.user_registration),
     path('logout', views.logout_user)
