@@ -2,12 +2,14 @@ import json
 
 from bson import ObjectId
 from django.contrib.auth import authenticate, login, logout
+from django.core.exceptions import ValidationError
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.contrib.auth.models import User
 from route import models
 from django.db import connection
 from mongo_utils import MongoDBConnection
+from django.core.paginator import Paginator
 
 import pymongo
 
@@ -47,12 +49,17 @@ def route_filter(request, route_type=None, country=None, location=None):
                    "stopping_point": i[3], "route_type": i[4], "start": i[5],
                    "end": i[6]} for i in result]
 
+    p = Paginator(new_result, 2)
+    num_page = 2
+    select_page = p.get_page(num_page)
+
     with MongoDBConnection('admin', 'admin', '127.0.0.1') as db:
         collec = db['stop_points']
         stop_point = collec.find_one({"_id": ObjectId(new_result[0]['stopping_point'])})
         print(f"{stop_point}")
-    # return HttpResponse(new_result)
-    return HttpResponse([new_result, stop_point])
+
+    # return HttpResponse([new_result, stop_point])
+    return HttpResponse(select_page.object_list)
 
 
 def route_detail(request, id):
@@ -78,6 +85,7 @@ def route_add(request):
         duration = request.POST.get('duration')
         route_type = request.POST.get('route_type')
 
+        models.validate_stopping_point(stop_points)
         stop_list = json.loads(stop_points)
         with MongoDBConnection('admin', 'admin', '127.0.0.1') as db:
             collec = db['stop_points']
@@ -102,10 +110,13 @@ def route_add_event(request, route_id):
             price = request.POST.get('price')
             new_event = models.Event(id_route=route_id,
                                      event_admin=1,
-                                     approved_users=[],
-                                     pending_users=[],
+                                     event_users=[],
                                      start_date=start_date, price=price)
-            new_event.save()
+            try:
+                new_event.full_clean()
+                new_event.save()
+            except ValidationError:
+                return HttpResponse('Date error')
             return HttpResponse('Adding event')
     else:
         return HttpResponse('Not allowed to add event')
@@ -207,5 +218,3 @@ def add_me_to_event(request, event_id):
             event_users.update_one({"_id": ObjectId(all_event_users)}, {"$set": all_event_users}, upsert=False)
         else:
             return HttpResponse('You are in pending users or accepted')
-
-
