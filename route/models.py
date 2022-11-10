@@ -27,11 +27,12 @@ def validate_route_type(value):
 
 
 def validate_date(value):
-    try:
-        parsed_date = datetime.datetime.strptime(str(value), "%Y-%m-%d")
-    except:
-        raise ValueError("Date Error")
-    if datetime.datetime.today() > parsed_date:
+    # try:
+    #     parsed_date = datetime.datetime.strptime(str(value), "%Y-%m-%d")
+    # except:
+    #     raise ValueError("Date Error")
+
+    if datetime.date.today() > value:
         raise ValueError("Date Error")
 
 

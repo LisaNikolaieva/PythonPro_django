@@ -119,7 +119,7 @@ def route_add_event(request, route_id):
                 return HttpResponse('Date error')
             return HttpResponse('Adding event')
     else:
-        return HttpResponse('Not allowed to add event')
+        return HttpResponse('Not allowed to add event', status=401)
 
 
 ####################################################
