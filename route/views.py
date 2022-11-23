@@ -68,8 +68,12 @@ def route_detail(request, id):
 
 
 def route_reviews(request, route_id):
-    result = models.Review.objects.all().filter(route_id=route_id)
-    return HttpResponse([{'route_id': itm.route_id, 'review_rate': itm.review_rate} for itm in result])
+    if request.method == 'POST':
+        result = models.Review.objects.all().filter(route_id=request.POST.get('route_id'))
+        return HttpResponse(json.dumps([{"route_id": itm.route_id,
+                                         "review_text": itm.review_text,
+                                         "review_rate": itm.review_rate} for itm in result]),
+                            content_type='application/json')
 
 
 def route_add(request):

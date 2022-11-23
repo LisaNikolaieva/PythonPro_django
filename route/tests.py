@@ -3,7 +3,7 @@ from django.test import TestCase, RequestFactory
 from django.test import Client
 from route.models import Event
 from unittest.mock import patch
-from route.views import route_add_event
+from route.views import route_add_event, route_reviews
 
 
 # Create your tests here.
@@ -37,3 +37,14 @@ class TestEvent(TestCase):
         self.assertEqual(200, response.status_code)
         itms = list(Event.objects.all().filter(id_route=1))
         self.assertEqual(1, len(itms))
+
+
+class TestRouteReview(TestCase):
+    fixtures = ["reviews.json"]
+
+    def test_with_receiving(self):
+        resp = self.client.post('/route/5/review', {'route_id': 5})
+        parsed_resp = resp.json()
+        print(parsed_resp)
+        self.assertEqual('soso', parsed_resp[0]['review_text'])
+        print(parsed_resp)
